@@ -94,3 +94,8 @@ class UserCase(TransactionCase, MailInstalled):
                 }
             ],
         )
+
+    def test_copy_multiple_users(self):
+        users = self.env.ref("base.user_admin") | self.env.ref("base.user_demo")
+        dupes = users.copy()
+        self.assertEqual(len(dupes), 2)
