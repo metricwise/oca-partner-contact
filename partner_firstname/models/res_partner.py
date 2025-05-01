@@ -28,6 +28,13 @@ class ResPartner(models.Model):
     )
 
     @api.model
+    def name_create(self, name):
+        if not name:
+            record = self.create(self._get_inverse_name(name))
+            return record.id, record.display_name
+        return super().name_create(name)
+
+    @api.model
     def name_fields_in_vals(self, vals):
         """Method to check if any name fields are in `vals`."""
         return vals.get("firstname") or vals.get("lastname")
@@ -218,7 +225,7 @@ class ResPartner(models.Model):
         """
         # Company name goes to the lastname
         if is_company or not name:
-            parts = [name or False, False]
+            parts = [name or "", ""]
         # Guess name splitting
         else:
             order = self._get_names_order()
@@ -251,7 +258,7 @@ class ResPartner(models.Model):
             if all(
                 (
                     record.type == "contact" or record.is_company,
-                    not (record.firstname or record.lastname),
+                    not (type(record.firstname) is str or type(record.lastname) is str),
                 )
             ):
                 raise exceptions.EmptyNamesError(record, self.env)
