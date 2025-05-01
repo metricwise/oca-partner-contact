@@ -5,7 +5,7 @@
 # License AGPL-3.0 or later (http://www.gnu.org/licenses/agpl.html).
 import logging
 
-from odoo import _, api, fields, models
+from odoo import api, fields, models
 
 from .. import exceptions
 
@@ -71,23 +71,30 @@ class ResPartner(models.Model):
             ).create([vals])
         return created_partners
 
-    def get_extra_default_copy_values(self, order):
+    def get_extra_default_copy_values(self, order, default=None):
         """Method to add '(copy)' suffix to lastname or firstname, depending on name
         order configuration.
         """
-        if order == "first_last":
-            return {
-                "lastname": _("%s (copy)", self.lastname)
-                if self.lastname
-                else _("(copy)")
+        default = default or {}
+        if default.get("name"):
+            values = self._get_inverse_name(default["name"], self.is_company)
+        else:
+            values = {
+                "firstname": default.get("firstname", self.firstname) or "",
+                "lastname": default.get("lastname", self.lastname) or "",
             }
-        return {
-            "firstname": _("%s (copy)", self.firstname)
-            if self.firstname
-            else _("(copy)")
-        }
+            if order == "first_last":
+                if not default.get("lastname"):
+                    values["lastname"] = self.env._("%s (copy)", values["lastname"])
+            else:
+                if not default.get("firstname"):
+                    values["firstname"] = self.env._("%s (copy)", values["firstname"])
+            values["name"] = self._get_computed_name(
+                values["lastname"], values["firstname"]
+            )
+        return values
 
-    def copy(self, default=None):
+    def copy_data(self, default=None):
         """Ensure partners are copied right.
 
         Odoo adds ``(copy)`` to the end of :attr:`~.name`, but that would get
@@ -95,10 +102,12 @@ class ResPartner(models.Model):
         and lastname fields.
         """
         default = default or {}
+        vals_list = super().copy_data(default=default)
         order = self._get_names_order()
-        extra_default_values = self.get_extra_default_copy_values(order)
-        default.update(extra_default_values)
-        return super(ResPartner, self.with_context(copy=True)).copy(default)
+        return [
+            dict(vals, **partner.get_extra_default_copy_values(order, default))
+            for partner, vals in zip(self, vals_list, strict=False)
+        ]
 
     @api.model
     def default_get(self, fields_list):
